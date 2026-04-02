@@ -235,11 +235,6 @@ func resize(hwnd w32.HWND, f resizeFunc) (bool, error) {
 	}
 	rect := w32.GetWindowRect(hwnd)
 	mon := w32.MonitorFromWindow(hwnd, w32.MONITOR_DEFAULTTONEAREST)
-	hdc := w32.GetDC(hwnd)
-	displayDPI := w32.GetDeviceCaps(hdc, w32.LOGPIXELSY)
-	if !w32.ReleaseDC(hwnd, hdc) {
-		return false, fmt.Errorf("failed to ReleaseDC:%d", w32.GetLastError())
-	}
 	var monInfo w32.MONITORINFO
 	if !w32.GetMonitorInfo(mon, &monInfo) {
 		return false, fmt.Errorf("failed to GetMonitorInfo:%d", w32.GetLastError())
@@ -249,12 +244,13 @@ func resize(hwnd w32.HWND, f resizeFunc) (bool, error) {
 	if !ok {
 		return false, fmt.Errorf("failed to DwmGetWindowAttributeEXTENDED_FRAME_BOUNDS:%d", w32.GetLastError())
 	}
-	windowDPI := w32ex.GetDpiForWindow(hwnd)
-	resizedFrame := resizeForDpi(frame, int32(windowDPI), int32(displayDPI))
+	// With per-monitor DPI v2, GetWindowRect and DWM frame bounds are both in
+	// physical screen coordinates — no DPI rescaling needed.
+	resizedFrame := frame
 
-	fmt.Printf("> window: 0x%x %#v (w:%d,h:%d) mon=0x%X(@ display DPI:%d)\n", hwnd, rect, rect.Width(), rect.Height(), mon, displayDPI)
-	fmt.Printf("> DWM frame:        %#v (W:%d,H:%d) @ window DPI=%v\n", frame, frame.Width(), frame.Height(), windowDPI)
-	fmt.Printf("> DPI-less frame:   %#v (W:%d,H:%d)\n", resizedFrame, resizedFrame.Width(), resizedFrame.Height())
+	dpi := w32ex.GetDpiForWindow(hwnd)
+	fmt.Printf("> window: 0x%x %#v (w:%d,h:%d) mon=0x%X(DPI:%d)\n", hwnd, rect, rect.Width(), rect.Height(), mon, dpi)
+	fmt.Printf("> DWM frame:        %#v (W:%d,H:%d)\n", frame, frame.Width(), frame.Height())
 
 	// calculate how many extra pixels go to win10 invisible borders
 	lExtra := resizedFrame.Left - rect.Left

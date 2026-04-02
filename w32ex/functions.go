@@ -62,7 +62,21 @@ func GetShellWindow() (hwnd w32.HWND) {
 	return w32.HWND(r1)
 }
 
+// DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 gives us accurate per-monitor DPI
+// values, which is required for correct window positioning on mixed-DPI setups
+// (e.g. 1440p + 5K displays at different scale factors).
+const DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = ^uintptr(3) // -4
+
 func SetProcessDPIAware() bool {
+	// Try the modern per-monitor v2 API first (Windows 10 1703+).
+	proc := user32.NewProc("SetProcessDpiAwarenessContext")
+	if err := proc.Find(); err == nil {
+		r1, _, _ := proc.Call(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)
+		if r1 != 0 {
+			return true
+		}
+	}
+	// Fall back to the legacy system-wide DPI awareness.
 	r1, _, _ := user32.NewProc("SetProcessDPIAware").Call()
 	return r1 != 0
 }
